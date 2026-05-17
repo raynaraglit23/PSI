@@ -11,9 +11,10 @@ import MapKit
 // MARK: - Models
 
 struct Experience: Identifiable {
-    let id = UUID()
+    let id: UUID
     let title: String
     let imageName: String
+    let imageURL: URL?
     let category: Category
     let distanceKm: Double
     let description: String
@@ -40,23 +41,6 @@ enum Category: String, CaseIterable, Identifiable {
         }
     }
 }
-
-// MARK: - Sample Data
-
-let sampleExperiences: [Experience] = [
-    Experience(title: "Music Show", imageName: "music_show", category: .celebrar, distanceKm: 2.0,
-               description: "Um show de música ao vivo com artistas locais incríveis no Rimberio Stadium.", price: "R$ 40", location: "Rimberio Stadium, Fortaleza"),
-    Experience(title: "Workshop", imageName: "workshop", category: .aprender, distanceKm: 10.0,
-               description: "Workshop de marketing digital para iniciantes e profissionais.", price: "R$ 80", location: "Digital Start, Fortaleza"),
-    Experience(title: "Reading Club", imageName: "reading_club", category: .criar, distanceKm: 0.4,
-               description: "Clube do livro semanal com discussões ricas e café.", price: "Gratuito", location: "Café Literário, Fortaleza"),
-    Experience(title: "Marché", imageName: "marche", category: .explorar, distanceKm: 50.0,
-               description: "Feira de criadores com cerâmica, flores, velas e objetos de decoração.", price: "Gratuito", location: "Centro, Fortaleza"),
-    Experience(title: "Art Classes", imageName: "art_classes", category: .criar, distanceKm: 3.2,
-               description: "Aulas de arte para todas as idades com foco em expressão livre.", price: "R$ 60", location: "Ateliê Cores, Fortaleza"),
-    Experience(title: "Speak Now", imageName: "speak_now", category: .aprender, distanceKm: 1.5,
-               description: "Noite de inglês conversacional em ambiente descontraído.", price: "R$ 25", location: "The Hub, Fortaleza"),
-]
 
 // MARK: - Color Extension
 
@@ -87,6 +71,8 @@ extension Color {
 }
 
 struct HomeView: View {
+    @State private var viewModel = HomeViewModel()
+    @State private var locationManager = LocationManager()
     @State private var selectedCategory: Category? = nil
     @State private var showLocationSheet = false
     @State private var showFilterSheet = false
@@ -96,7 +82,7 @@ struct HomeView: View {
     @State private var maxPrice: Double = 200
     
     var filteredExperiences: [Experience] {
-        sampleExperiences.filter { exp in
+        viewModel.experiences.filter { exp in
             let categoryMatch = selectedCategory == nil || exp.category == selectedCategory
             let distanceMatch = exp.distanceKm <= maxDistance
             return categoryMatch && distanceMatch
@@ -199,6 +185,25 @@ struct HomeView: View {
                         .padding(.horizontal, 20)
                     }
                     .padding(.bottom, 20)
+
+                    if viewModel.isLoading && viewModel.experiences.isEmpty {
+                        HStack(spacing: 10) {
+                            ProgressView()
+                            Text("Carregando eventos culturais...")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 16)
+                    }
+
+                    if let errorMessage = viewModel.errorMessage, viewModel.experiences.isEmpty {
+                        Text(errorMessage)
+                            .font(.system(size: 14))
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 20)
+                            .padding(.bottom, 16)
+                    }
                     
                     // MARK: Asymmetric Grid
                     AsymmetricGrid(experiences: filteredExperiences) { experience in
@@ -231,6 +236,14 @@ struct HomeView: View {
             ExperienceDetailView(experience: experience)
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
+        }
+        .task {
+            await viewModel.loadExperiences()
+            locationManager.requestWhenInUseAuthorization()
+            viewModel.updateUserCoordinate(locationManager.userCoordinate)
+        }
+        .onChange(of: locationManager.userCoordinate?.latitude) { _, _ in
+            viewModel.updateUserCoordinate(locationManager.userCoordinate)
         }
     }
 }
@@ -311,25 +324,100 @@ struct AsymmetricGrid: View {
     let onTap: (Experience) -> Void
     
     var body: some View {
-        let leftColumn = stride(from: 0, to: experiences.count, by: 2).map { experiences[$0] }
-        let rightColumn = stride(from: 1, to: experiences.count, by: 2).map { experiences[$0] }
-        
-        HStack(alignment: .top, spacing: 10) {
-            // Left column — cards maiores
-            LazyVStack(spacing: 10) {
-                ForEach(leftColumn) { exp in
-                    ExperienceCard(experience: exp, isLarge: true)
-                        .onTapGesture { onTap(exp) }
+        GeometryReader { proxy in
+            let spacing: CGFloat = 10
+            let columnWidth = max((proxy.size.width - spacing) / 2, 0)
+            let columns = MasonryLayout.makeColumns(from: experiences)
+
+            HStack(alignment: .top, spacing: spacing) {
+                ForEach(columns) { column in
+                    LazyVStack(spacing: spacing) {
+                        ForEach(column.items) { item in
+                            ExperienceCard(experience: item.experience, style: item.style)
+                                .frame(width: columnWidth)
+                                .onTapGesture { onTap(item.experience) }
+                        }
+                    }
+                    .frame(width: columnWidth, alignment: .top)
                 }
             }
-            
-            // Right column — cards menores
-            LazyVStack(spacing: 10) {
-                ForEach(rightColumn) { exp in
-                    ExperienceCard(experience: exp, isLarge: false)
-                        .onTapGesture { onTap(exp) }
-                }
-            }
+            .frame(width: proxy.size.width, alignment: .top)
+        }
+        .frame(height: MasonryLayout.totalHeight(for: experiences))
+    }
+}
+
+private struct MasonryLayout {
+    static func makeColumns(from experiences: [Experience]) -> [MasonryColumn] {
+        var columns = [
+            MasonryColumn(id: 0, items: [], totalHeight: 0),
+            MasonryColumn(id: 1, items: [], totalHeight: 0)
+        ]
+
+        for (index, experience) in experiences.enumerated() {
+            let style = ExperienceCardStyle.style(for: experience, index: index)
+            let item = MasonryItem(experience: experience, style: style)
+            let destinationIndex = columns[0].totalHeight <= columns[1].totalHeight ? 0 : 1
+
+            columns[destinationIndex].items.append(item)
+            columns[destinationIndex].totalHeight += style.totalHeight + 10
+        }
+
+        return columns
+    }
+
+    static func totalHeight(for experiences: [Experience]) -> CGFloat {
+        let columns = makeColumns(from: experiences)
+        return columns.map(\.totalHeight).max() ?? 0
+    }
+}
+
+private struct MasonryColumn: Identifiable {
+    let id: Int
+    var items: [MasonryItem]
+    var totalHeight: CGFloat
+}
+
+private struct MasonryItem: Identifiable {
+    let experience: Experience
+    let style: ExperienceCardStyle
+
+    var id: UUID { experience.id }
+}
+
+enum ExperienceCardStyle {
+    case tall
+    case medium
+    case compact
+
+    static let interItemSpacing: CGFloat = 6
+    static let infoRowHeight: CGFloat = 22
+
+    var mediaHeight: CGFloat {
+        switch self {
+        case .tall:
+            return 280
+        case .medium:
+            return 240
+        case .compact:
+            return 205
+        }
+    }
+
+    var totalHeight: CGFloat {
+        mediaHeight + Self.interItemSpacing + Self.infoRowHeight
+    }
+
+    static func style(for experience: Experience, index: Int) -> ExperienceCardStyle {
+        let seed = abs(experience.title.hashValue) + index
+
+        switch seed % 3 {
+        case 0:
+            return .tall
+        case 1:
+            return .medium
+        default:
+            return .compact
         }
     }
 }
@@ -338,32 +426,24 @@ struct AsymmetricGrid: View {
 
 struct ExperienceCard: View {
     let experience: Experience
-    let isLarge: Bool
+    let style: ExperienceCardStyle
     
     var cardHeight: CGFloat {
-        isLarge ? 280 : 220
+        style.mediaHeight
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            // Image placeholder (usa SF Symbol como placeholder)
-            ZStack {
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(experience.category.color.opacity(0.25))
-                    .frame(height: cardHeight)
-                
-                VStack(spacing: 8) {
-                    Image(systemName: categoryIcon(experience.category))
-                        .font(.system(size: isLarge ? 48 : 36))
-                        .foregroundColor(experience.category.color)
-                    Text(experience.title)
-                        .font(.system(size: isLarge ? 18 : 15, weight: .bold, design: .rounded))
-                        .multilineTextAlignment(.center)
-                        .foregroundColor(.primary)
-                        .padding(.horizontal, 8)
-                }
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 16))
+        VStack(alignment: .leading, spacing: ExperienceCardStyle.interItemSpacing) {
+            RemoteExperienceImage(
+                imageURL: experience.imageURL,
+                fallbackSystemName: experience.imageName,
+                accentColor: experience.category.color,
+                cornerRadius: 16,
+                style: .gridCard
+            )
+            .frame(height: cardHeight)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .clipped()
             
             // Info row
             HStack(spacing: 6) {
@@ -382,8 +462,12 @@ struct ExperienceCard: View {
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(.secondary)
             }
+            .frame(height: ExperienceCardStyle.infoRowHeight, alignment: .center)
             .padding(.horizontal, 4)
         }
+        .frame(width: nil, height: style.totalHeight, alignment: .top)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .clipped()
     }
     
     func distanceLabel(_ km: Double) -> String {
@@ -394,15 +478,6 @@ struct ExperienceCard: View {
         }
     }
     
-    func categoryIcon(_ category: Category) -> String {
-        switch category {
-        case .criar:    return "paintbrush.pointed.fill"
-        case .mover:    return "figure.run"
-        case .aprender: return "book.fill"
-        case .celebrar: return "music.note"
-        case .explorar: return "binoculars.fill"
-        }
-    }
 }
 
 // MARK: - Experience Detail View
@@ -417,21 +492,21 @@ struct ExperienceDetailView: View {
                 
                 // Hero
                 ZStack(alignment: .topTrailing) {
-                    RoundedRectangle(cornerRadius: 0)
-                        .fill(experience.category.color.opacity(0.3))
-                        .frame(height: 300)
-                        .overlay(
-                            Image(systemName: categoryIcon(experience.category))
-                                .font(.system(size: 80))
-                                .foregroundColor(experience.category.color)
-                        )
+                    RemoteExperienceImage(
+                        imageURL: experience.imageURL,
+                        fallbackSystemName: experience.imageName,
+                        accentColor: experience.category.color,
+                        cornerRadius: 0,
+                        style: .detailHero
+                    )
+                    .frame(height: 300)
                     
                     Button {
                         dismiss()
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 30))
-                            .foregroundStyle(.white, Color(.systemGray3))
+                            .foregroundStyle(.white, Color(.systemGray3))   
                             .padding()
                     }
                 }
@@ -512,15 +587,6 @@ struct ExperienceDetailView: View {
         km < 1 ? "~\(Int(km * 1000))m" : "~\(Int(km))km"
     }
     
-    func categoryIcon(_ category: Category) -> String {
-        switch category {
-        case .criar:    return "paintbrush.pointed.fill"
-        case .mover:    return "figure.run"
-        case .aprender: return "book.fill"
-        case .celebrar: return "music.note"
-        case .explorar: return "binoculars.fill"
-        }
-    }
 }
 
 // MARK: - Location Picker Sheet
