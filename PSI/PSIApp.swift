@@ -10,10 +10,12 @@ import SwiftData
 
 @main
 struct PSIApp: App {
+    @State private var savedEventsStore = SavedEventsStore()
     var body: some Scene {
         WindowGroup {
             ContentView()
         }
+        .environment(savedEventsStore)
         
     }
 }

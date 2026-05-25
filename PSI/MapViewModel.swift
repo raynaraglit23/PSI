@@ -23,6 +23,7 @@ struct MockEventLocationProvider: EventLocationProviding {
                 address: "Fortaleza, Ceará",
                 dateText: "18 de maio",
                 details: "Show de musica ao vivo.",
+                date: "18-05-26",
                 price: "Gratuito",
                 imageURL: nil
             ),
@@ -34,6 +35,7 @@ struct MockEventLocationProvider: EventLocationProviding {
                 address: "Fortaleza, Ceará",
                 dateText: "22 de maio",
                 details: "Feira com artistas e criadores locais.",
+                date: "18-05-26",
                 price: "Gratuito",
                 imageURL: nil
             ),
@@ -45,6 +47,7 @@ struct MockEventLocationProvider: EventLocationProviding {
                 address: "Fortaleza, Ceará",
                 dateText: "25 de maio",
                 details: "Oficina artistica para iniciantes.",
+                date: "18-05-26",
                 price: "Gratuito",
                 imageURL: nil
             )

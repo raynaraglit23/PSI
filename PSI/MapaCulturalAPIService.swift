@@ -59,6 +59,7 @@ struct MapaCulturalAPIService: EventLocationProviding {
                         eventName: event.name,
                         eventID: event.id,
                         shortDescription: event.shortDescription,
+                        nextDate: event.nextDate,
                         imageURL: event.imageURL
                     ) else {
                         return nil
@@ -78,9 +79,10 @@ struct MapaCulturalAPIService: EventLocationProviding {
         components.queryItems = [
             URLQueryItem(
                 name: "@select",
-                value: "id,name,shortDescription,occurrences.{id,rule,startsOn,startsAt,endsOn,endsAt,space.{id,name,endereco,En_Municipio,location}}"
+                value: "id,name,shortDescription,nextDate,occurrences.{space.{id,name,endereco,En_Municipio,location}}"
             ),
             URLQueryItem(name: "@files", value: "(header.header,avatar.avatarBig):url"),
+            URLQueryItem(name: "@order", value: "createTimestamp DESC"),
             URLQueryItem(name: "@limit", value: "200")
         ]
 
@@ -124,6 +126,7 @@ private struct MapaCulturalEventDTO: Decodable {
     let id: IdentifierValue
     let name: String
     let shortDescription: String?
+    let nextDate: String?
     let occurrences: [MapaCulturalOccurrenceDTO]
     let imageURL: URL?
 
@@ -132,6 +135,7 @@ private struct MapaCulturalEventDTO: Decodable {
 
         id = try container.decode(IdentifierValue.self, forKey: DynamicCodingKey("id"))
         name = try container.decode(String.self, forKey: DynamicCodingKey("name"))
+        nextDate = try container.decodeIfPresent(String.self, forKey: DynamicCodingKey("nextDate"))
         shortDescription = try container.decodeIfPresent(String.self, forKey: DynamicCodingKey("shortDescription"))
         occurrences = try container.decodeIfPresent([MapaCulturalOccurrenceDTO].self, forKey: DynamicCodingKey("occurrences")) ?? []
         imageURL = container.decodePreferredImageURL()
@@ -166,6 +170,7 @@ private struct MapaCulturalOccurrenceDTO: Decodable {
         eventName: String,
         eventID: IdentifierValue,
         shortDescription: String?,
+        nextDate: String?,
         imageURL: URL?
     ) -> (event: EventLocation, isFromFortaleza: Bool)? {
         guard
@@ -174,7 +179,16 @@ private struct MapaCulturalOccurrenceDTO: Decodable {
         else {
             return nil
         }
-
+        
+        let formattedDate: String? = nextDate.flatMap { raw in
+            let isoFormatter = DateFormatter()
+            isoFormatter.dateFormat = "yyyy-MM-dd"
+            guard let date = isoFormatter.date(from: raw) else { return nil }
+            let display = DateFormatter()
+            display.dateFormat = "dd/MM/yyyy"
+            display.locale = Locale(identifier: "pt_BR")
+            return display.string(from: date)
+        }
         let identifierSeed = "\(eventID.stringValue)-\(space.id?.stringValue ?? space.name ?? eventName)-\(coordinate.latitude)-\(coordinate.longitude)"
         let event = EventLocation(
             id: UUID.stableIdentifier(from: identifierSeed),
@@ -184,6 +198,7 @@ private struct MapaCulturalOccurrenceDTO: Decodable {
             address: space.endereco ?? "Fortaleza, Ceará",
             dateText: dateText,
             details: shortDescription,
+            date: formattedDate,
             price: nil,
             imageURL: imageURL
         )
