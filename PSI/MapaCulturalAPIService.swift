@@ -144,6 +144,27 @@ private struct MapaCulturalEventDTO: Decodable {
 
 private struct MapaCulturalOccurrenceDTO: Decodable {
     let space: MapaCulturalSpaceDTO?
+    let rule: MapaCulturalOccurrenceRuleDTO?
+    let dateText: String?
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: DynamicCodingKey.self)
+        space = try container.decodeIfPresent(MapaCulturalSpaceDTO.self, forKey: DynamicCodingKey("space"))
+        rule = try container.decodeIfPresent(MapaCulturalOccurrenceRuleDTO.self, forKey: DynamicCodingKey("rule"))
+
+        let startsOn = rule?.startsOn ?? container.decodeFlexibleString(forKey: "startsOn")
+        let startsAt = rule?.startsAt ?? container.decodeFlexibleString(forKey: "startsAt")
+        let endsOn = rule?.until ?? container.decodeFlexibleString(forKey: "endsOn")
+        let endsAt = rule?.endsAt ?? container.decodeFlexibleString(forKey: "endsAt")
+        let ruleDescription = rule?.description
+        dateText = MapaCulturalDateFormatter.makeDateText(
+            startsOn: startsOn,
+            startsAt: startsAt,
+            endsOn: endsOn,
+            endsAt: endsAt,
+            rule: ruleDescription
+        )
+    }
 
     func toEventLocation(
         eventName: String,
@@ -175,6 +196,7 @@ private struct MapaCulturalOccurrenceDTO: Decodable {
             coordinate: coordinate,
             venueName: space.name ?? "Local a confirmar",
             address: space.endereco ?? "Fortaleza, Ceará",
+            dateText: dateText,
             details: shortDescription,
             date: formattedDate,
             price: nil,
@@ -183,6 +205,14 @@ private struct MapaCulturalOccurrenceDTO: Decodable {
 
         return (event, space.isFromFortaleza)
     }
+}
+
+private struct MapaCulturalOccurrenceRuleDTO: Decodable {
+    let startsAt: String?
+    let endsAt: String?
+    let startsOn: String?
+    let until: String?
+    let description: String?
 }
 
 private struct MapaCulturalSpaceDTO: Decodable {
@@ -350,6 +380,20 @@ private struct FlexibleImageReference: Decodable {
 }
 
 private extension KeyedDecodingContainer where K == DynamicCodingKey {
+    func decodeFlexibleString(forKey keyName: String) -> String? {
+        let key = DynamicCodingKey(keyName)
+        if let value = try? decodeIfPresent(String.self, forKey: key) {
+            return value
+        }
+        if let value = try? decodeIfPresent(Int.self, forKey: key) {
+            return String(value)
+        }
+        if let value = try? decodeIfPresent(Double.self, forKey: key) {
+            return String(value)
+        }
+        return nil
+    }
+
     func decodePreferredImageURL() -> URL? {
         let prioritizedKeys = ["files", "header", "avatar", "header.header", "avatar.avatarBig"]
 
@@ -363,6 +407,93 @@ private extension KeyedDecodingContainer where K == DynamicCodingKey {
         for key in allKeys where key.stringValue.localizedCaseInsensitiveContains("header") || key.stringValue.localizedCaseInsensitiveContains("avatar") {
             if let reference = try? decode(FlexibleImageReference.self, forKey: key), let url = reference.preferredURL {
                 return url
+            }
+        }
+
+        return nil
+    }
+}
+
+private enum MapaCulturalDateFormatter {
+    private static let outputFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "pt_BR")
+        formatter.dateFormat = "d 'de' MMMM"
+        return formatter
+    }()
+
+    private static let outputFormatterWithTime: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "pt_BR")
+        formatter.dateFormat = "d 'de' MMMM 'às' HH:mm"
+        return formatter
+    }()
+
+    private static let isoParsers: [ISO8601DateFormatter] = {
+        let full = ISO8601DateFormatter()
+        full.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+
+        let standard = ISO8601DateFormatter()
+        standard.formatOptions = [.withInternetDateTime]
+
+        let dateOnly = ISO8601DateFormatter()
+        dateOnly.formatOptions = [.withFullDate]
+
+        return [full, standard, dateOnly]
+    }()
+
+    private static let fallbackParsers: [DateFormatter] = {
+        let formats = [
+            "yyyy-MM-dd HH:mm:ss",
+            "yyyy-MM-dd HH:mm",
+            "yyyy-MM-dd"
+        ]
+
+        return formats.map { format in
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.dateFormat = format
+            return formatter
+        }
+    }()
+
+    static func makeDateText(
+        startsOn: String?,
+        startsAt: String?,
+        endsOn: String?,
+        endsAt: String?,
+        rule: String?
+    ) -> String? {
+        if let startsAtDate = parse(startsAt) {
+            return outputFormatterWithTime.string(from: startsAtDate)
+        }
+
+        if let startsOnDate = parse(startsOn) {
+            if let endsOnDate = parse(endsOn), Calendar.current.isDate(startsOnDate, inSameDayAs: endsOnDate) == false {
+                return "\(outputFormatter.string(from: startsOnDate)) a \(outputFormatter.string(from: endsOnDate))"
+            }
+            return outputFormatter.string(from: startsOnDate)
+        }
+
+        if let rule, rule.isEmpty == false {
+            return "Consulte a programacao do evento"
+        }
+
+        return nil
+    }
+
+    private static func parse(_ value: String?) -> Date? {
+        guard let value, value.isEmpty == false else { return nil }
+
+        for parser in isoParsers {
+            if let date = parser.date(from: value) {
+                return date
+            }
+        }
+
+        for parser in fallbackParsers {
+            if let date = parser.date(from: value) {
+                return date
             }
         }
 

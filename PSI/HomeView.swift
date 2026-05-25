@@ -14,6 +14,7 @@ struct Experience: Identifiable, Codable {
     let imageURL: URL?
     let category: Category
     let distanceKm: Double
+    let dateText: String
     let description: String
     let price: String
     let location: String
@@ -67,6 +68,7 @@ extension Color {
 struct HomeView: View {
     @State private var viewModel       = HomeViewModel()
     @State private var locationManager = LocationManager()
+    @State private var searchText = ""
     @State private var selectedCategory: Category? = nil
     @State private var showLocationSheet = false
     @State private var showFilterSheet   = false
@@ -77,9 +79,13 @@ struct HomeView: View {
 
     var filteredExperiences: [Experience] {
         viewModel.experiences.filter { exp in
+            let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
             let categoryMatch = selectedCategory == nil || exp.category == selectedCategory
             let distanceMatch = exp.distanceKm <= maxDistance
-            return categoryMatch && distanceMatch
+            let searchMatch = query.isEmpty
+                || exp.title.localizedCaseInsensitiveContains(query)
+                || exp.location.localizedCaseInsensitiveContains(query)
+            return categoryMatch && distanceMatch && searchMatch
         }
     }
 
@@ -115,7 +121,11 @@ struct HomeView: View {
                     .padding(.horizontal, 20)
                     .padding(.bottom, 16)
 
-                    // Category chips
+                    HomeSearchBar(text: $searchText)
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 18)
+                    
+                    // MARK: Category Chips
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 10) {
                             Button {
@@ -549,6 +559,13 @@ struct ExperienceDetailView: View {
                             .font(.system(size: 14)).foregroundColor(.secondary)
                     }
 
+                        .font(.system(size: 14))
+                        .foregroundColor(.secondary)
+
+                    Label(experience.dateText, systemImage: "calendar")
+                        .font(.system(size: 14))
+                        .foregroundColor(.secondary)
+                    
                     Divider()
 
                     Text(experience.description)
