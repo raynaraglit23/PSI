@@ -4,7 +4,7 @@ import PhotosUI
 
 struct ProfileCardView: View {
     // Persistência automática no UserDefaults
-    @AppStorage("profileName") private var name: String = "Kelly"
+    @AppStorage("profileName") private var name: String = "Seu Nome"
     @AppStorage("profileDescription") private var description: String = "cool girl and vibes"
     
     // Estados do Picker e da Imagem

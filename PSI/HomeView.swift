@@ -27,9 +27,9 @@ enum Category: String, CaseIterable, Identifiable, Codable {
     case aprender = "Aprender"
     case celebrar = "Celebrar"
     case explorar = "Explorar"
-
+    
     var id: String { rawValue }
-
+    
     var color: Color {
         switch self {
         case .criar:    return Color(hex: "FFB5C8")
@@ -76,19 +76,19 @@ struct HomeView: View {
     @State private var selectedExperience: Experience? = nil
     @State private var maxDistance: Double = 100
     @State private var maxPrice: Double    = 200
-
+    
     var filteredExperiences: [Experience] {
         viewModel.experiences.filter { exp in
             let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
             let categoryMatch = selectedCategory == nil || exp.category == selectedCategory
             let distanceMatch = exp.distanceKm <= maxDistance
             let searchMatch = query.isEmpty
-                || exp.title.localizedCaseInsensitiveContains(query)
-                || exp.location.localizedCaseInsensitiveContains(query)
+            || exp.title.localizedCaseInsensitiveContains(query)
+            || exp.location.localizedCaseInsensitiveContains(query)
             return categoryMatch && distanceMatch && searchMatch
         }
     }
-
+    
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -96,7 +96,7 @@ struct HomeView: View {
                     Text("Lore")
                         .font(.system(size: 20, weight: .bold, design: .rounded))
                         .padding()
-
+                    
                     // Header — location + filter
                     HStack(alignment: .center) {
                         Button { showLocationSheet = true } label: {
@@ -120,7 +120,7 @@ struct HomeView: View {
                     }
                     .padding(.horizontal, 20)
                     .padding(.bottom, 16)
-
+                    
                     HomeSearchBar(text: $searchText)
                         .padding(.horizontal, 20)
                         .padding(.bottom, 18)
@@ -160,7 +160,7 @@ struct HomeView: View {
                         .padding(.horizontal, 20)
                     }
                     .padding(.bottom, 20)
-
+                    
                     if viewModel.isLoading && viewModel.experiences.isEmpty {
                         HStack(spacing: 10) {
                             ProgressView()
@@ -169,12 +169,12 @@ struct HomeView: View {
                         }
                         .padding(.horizontal, 20).padding(.bottom, 16)
                     }
-
+                    
                     if let err = viewModel.errorMessage, viewModel.experiences.isEmpty {
                         Text(err).font(.system(size: 14)).foregroundColor(.secondary)
                             .padding(.horizontal, 20).padding(.bottom, 16)
                     }
-
+                    
                     AsymmetricGrid(experiences: filteredExperiences) { selectedExperience = $0 }
                         .padding(.horizontal, 14).padding(.bottom, 100)
                 }
@@ -215,7 +215,7 @@ struct LocationPickerSheet: View {
     @Environment(\.dismiss) var dismiss
     @State private var searchText = ""
     var completer = CitySearchCompleter()
-
+    
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
@@ -244,7 +244,7 @@ struct LocationPickerSheet: View {
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
-
+                
                 if completer.results.isEmpty && !searchText.isEmpty {
                     ContentUnavailableView(
                         "Nenhum resultado",
@@ -294,39 +294,74 @@ struct LocationPickerSheet: View {
 final class CitySearchCompleter: NSObject, MKLocalSearchCompleterDelegate {
     var results: [MKLocalSearchCompletion] = []
     private let completer = MKLocalSearchCompleter()
-
+    
     override init() {
         super.init()
         completer.delegate  = self
         // .address gives city-level results; avoids noisy POI names
         completer.resultTypes = .address
     }
-
+    
     func search(query: String) {
         let q = query.trimmingCharacters(in: .whitespaces)
         guard !q.isEmpty else { results = []; return }
         completer.queryFragment = q
     }
-
+    
     func completerDidUpdateResults(_ completer: MKLocalSearchCompleter) {
         DispatchQueue.main.async {
             // Keep only results that have a subtitle (state/country) — city-like entries
             self.results = completer.results.filter { !$0.subtitle.isEmpty }
         }
     }
-
+    
     func completer(_ completer: MKLocalSearchCompleter, didFailWithError error: Error) {
         print("LocationCompleter error:", error.localizedDescription)
     }
 }
 
 // MARK: - Filter Sheet
+private struct HomeSearchBar: View {
+    @Binding var text: String
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(.secondary)
+
+            TextField("Buscar eventos", text: $text)
+                .font(.system(size: 15, weight: .medium))
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+
+            if text.isEmpty == false {
+                Button {
+                    text = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 16))
+                        .foregroundColor(.secondary.opacity(0.8))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(Color(.systemGray6))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.black.opacity(0.04), lineWidth: 1)
+        )
+    }
+}
 
 struct FilterSheet: View {
     @Binding var maxDistance: Double
     @Binding var maxPrice: Double
     @Environment(\.dismiss) var dismiss
-
+    
     var body: some View {
         NavigationStack {
             Form {
@@ -379,13 +414,13 @@ struct FilterSheet: View {
 struct AsymmetricGrid: View {
     let experiences: [Experience]
     let onTap: (Experience) -> Void
-
+    
     var body: some View {
         GeometryReader { proxy in
             let spacing: CGFloat = 10
             let columnWidth = max((proxy.size.width - spacing) / 2, 0)
             let columns = MasonryLayout.makeColumns(from: experiences)
-
+            
             HStack(alignment: .top, spacing: spacing) {
                 ForEach(columns) { column in
                     LazyVStack(spacing: spacing) {
@@ -419,7 +454,7 @@ private struct MasonryLayout {
         }
         return columns
     }
-
+    
     static func totalHeight(for experiences: [Experience]) -> CGFloat {
         makeColumns(from: experiences).map(\.totalHeight).max() ?? 0
     }
@@ -439,15 +474,15 @@ private struct MasonryItem: Identifiable {
 
 enum ExperienceCardStyle {
     case tall, medium, compact
-
+    
     static let interItemSpacing: CGFloat = 6
     static let infoRowHeight: CGFloat    = 22
-
+    
     var mediaHeight: CGFloat {
         switch self { case .tall: return 280; case .medium: return 240; case .compact: return 205 }
     }
     var totalHeight: CGFloat { mediaHeight + Self.interItemSpacing + Self.infoRowHeight }
-
+    
     static func style(for experience: Experience, index: Int) -> ExperienceCardStyle {
         switch (abs(experience.title.hashValue) + index) % 3 {
         case 0: return .tall; case 1: return .medium; default: return .compact
@@ -460,7 +495,7 @@ enum ExperienceCardStyle {
 struct ExperienceCard: View {
     let experience: Experience
     let style: ExperienceCardStyle
-
+    
     var body: some View {
         VStack(alignment: .leading, spacing: ExperienceCardStyle.interItemSpacing) {
             // Image + date badge overlay
@@ -475,20 +510,9 @@ struct ExperienceCard: View {
                 .frame(height: style.mediaHeight)
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 .clipped()
-
-                // Date badge — only shown when date is available
-                if let date = experience.date, !date.isEmpty {
-                    Text(date)
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 4)
-                        .background(Color.black.opacity(0.55))
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                        .padding(8)
-                }
+                
             }
-
+            
             HStack(spacing: 6) {
                 Circle().fill(experience.category.color).frame(width: 10, height: 10)
                 Text(experience.title)
@@ -504,7 +528,7 @@ struct ExperienceCard: View {
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .clipped()
     }
-
+    
     private func distanceLabel(_ km: Double) -> String {
         km < 1 ? "~\(Int(km * 1000))m" : "~\(km < 10 ? String(format: "%.0f", km) : String(Int(km)))km"
     }
@@ -516,7 +540,7 @@ struct ExperienceDetailView: View {
     let experience: Experience
     @Environment(\.dismiss) var dismiss
     @Environment(SavedEventsStore.self) private var savedEvents
-
+    
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
@@ -529,7 +553,7 @@ struct ExperienceDetailView: View {
                         style: .detailHero
                     )
                     .frame(height: 300)
-
+                    
                     Button { dismiss() } label: {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 30))
@@ -537,7 +561,7 @@ struct ExperienceDetailView: View {
                             .padding()
                     }
                 }
-
+                
                 VStack(alignment: .leading, spacing: 16) {
                     HStack {
                         Text(experience.category.rawValue.uppercased())
@@ -548,31 +572,24 @@ struct ExperienceDetailView: View {
                         Label(distanceLabel(experience.distanceKm), systemImage: "location.fill")
                             .font(.system(size: 13, weight: .medium)).foregroundColor(.secondary)
                     }
-
+                    
                     Text(experience.title)
                         .font(.system(size: 30, weight: .bold, design: .rounded))
-
+                    
                     Label(experience.location, systemImage: "mappin")
                         .font(.system(size: 14)).foregroundColor(.secondary)
-                    if let date = experience.date, !date.isEmpty {
-                        Label(date, systemImage: "calendar")
-                            .font(.system(size: 14)).foregroundColor(.secondary)
-                    }
-
-                        .font(.system(size: 14))
-                        .foregroundColor(.secondary)
-
+                    
                     Label(experience.dateText, systemImage: "calendar")
                         .font(.system(size: 14))
                         .foregroundColor(.secondary)
                     
                     Divider()
-
+                    
                     Text(experience.description)
                         .font(.system(size: 16)).lineSpacing(4)
-
+                    
                     Divider()
-
+                    
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Investimento")
@@ -601,7 +618,7 @@ struct ExperienceDetailView: View {
         }
         .ignoresSafeArea(edges: .top)
     }
-
+    
     private func distanceLabel(_ km: Double) -> String {
         km < 1 ? "~\(Int(km * 1000))m" : "~\(Int(km))km"
     }

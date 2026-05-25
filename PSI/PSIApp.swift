@@ -32,10 +32,8 @@ struct ContentView: View {
             Tab("", systemImage: "map.fill"){
                 MapView()
             }
-            Tab(role: .search){
-                SearchView()
-            } 
         }
+        .tint(.purple)
     }
 }
 
