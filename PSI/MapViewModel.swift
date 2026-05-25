@@ -22,6 +22,7 @@ struct MockEventLocationProvider: EventLocationProviding {
                 venueName: "Beira Mar",
                 address: "Fortaleza, Ceará",
                 details: "Show de musica ao vivo.",
+                date: "18-05-26",
                 price: "Gratuito",
                 imageURL: nil
             ),
@@ -32,6 +33,7 @@ struct MockEventLocationProvider: EventLocationProviding {
                 venueName: "Centro Cultural",
                 address: "Fortaleza, Ceará",
                 details: "Feira com artistas e criadores locais.",
+                date: "18-05-26",
                 price: "Gratuito",
                 imageURL: nil
             ),
@@ -42,6 +44,7 @@ struct MockEventLocationProvider: EventLocationProviding {
                 venueName: "Atelie Aberto",
                 address: "Fortaleza, Ceará",
                 details: "Oficina artistica para iniciantes.",
+                date: "18-05-26",
                 price: "Gratuito",
                 imageURL: nil
             )

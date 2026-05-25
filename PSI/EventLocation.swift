@@ -15,6 +15,7 @@ struct EventLocation: Identifiable {
     let venueName: String
     let address: String
     let details: String?
+    let date: String?
     let price: String?
     let imageURL: URL?
 }
