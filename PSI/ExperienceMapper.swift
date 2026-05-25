@@ -23,6 +23,7 @@ struct ExperienceMapper {
             imageURL: event.imageURL,
             category: inferredCategory(for: event.title),
             distanceKm: distance(from: referenceCoordinate, to: event.coordinate),
+            dateText: event.dateText?.nonEmpty ?? "Data a confirmar",
             description: event.details?.nonEmpty ?? "Detalhes deste evento ainda nao foram informados pela API do Mapa Cultural do Ceara.",
             price: event.price?.nonEmpty ?? "Gratuito",
             location: formattedLocation(for: event)

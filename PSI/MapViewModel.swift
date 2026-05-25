@@ -21,6 +21,7 @@ struct MockEventLocationProvider: EventLocationProviding {
                 coordinate: CLLocationCoordinate2D(latitude: -3.7172, longitude: -38.5006),
                 venueName: "Beira Mar",
                 address: "Fortaleza, Ceará",
+                dateText: "18 de maio",
                 details: "Show de musica ao vivo.",
                 price: "Gratuito",
                 imageURL: nil
@@ -31,6 +32,7 @@ struct MockEventLocationProvider: EventLocationProviding {
                 coordinate: CLLocationCoordinate2D(latitude: -3.7432, longitude: -38.5350),
                 venueName: "Centro Cultural",
                 address: "Fortaleza, Ceará",
+                dateText: "22 de maio",
                 details: "Feira com artistas e criadores locais.",
                 price: "Gratuito",
                 imageURL: nil
@@ -41,6 +43,7 @@ struct MockEventLocationProvider: EventLocationProviding {
                 coordinate: CLLocationCoordinate2D(latitude: -3.7278, longitude: -38.5149),
                 venueName: "Atelie Aberto",
                 address: "Fortaleza, Ceará",
+                dateText: "25 de maio",
                 details: "Oficina artistica para iniciantes.",
                 price: "Gratuito",
                 imageURL: nil

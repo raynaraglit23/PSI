@@ -14,6 +14,7 @@ struct EventLocation: Identifiable {
     let coordinate: CLLocationCoordinate2D
     let venueName: String
     let address: String
+    let dateText: String?
     let details: String?
     let price: String?
     let imageURL: URL?

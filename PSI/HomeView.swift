@@ -17,6 +17,7 @@ struct Experience: Identifiable {
     let imageURL: URL?
     let category: Category
     let distanceKm: Double
+    let dateText: String
     let description: String
     let price: String
     let location: String
@@ -73,6 +74,7 @@ extension Color {
 struct HomeView: View {
     @State private var viewModel = HomeViewModel()
     @State private var locationManager = LocationManager()
+    @State private var searchText = ""
     @State private var selectedCategory: Category? = nil
     @State private var showLocationSheet = false
     @State private var showFilterSheet = false
@@ -83,9 +85,13 @@ struct HomeView: View {
     
     var filteredExperiences: [Experience] {
         viewModel.experiences.filter { exp in
+            let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
             let categoryMatch = selectedCategory == nil || exp.category == selectedCategory
             let distanceMatch = exp.distanceKm <= maxDistance
-            return categoryMatch && distanceMatch
+            let searchMatch = query.isEmpty
+                || exp.title.localizedCaseInsensitiveContains(query)
+                || exp.location.localizedCaseInsensitiveContains(query)
+            return categoryMatch && distanceMatch && searchMatch
         }
     }
     
@@ -128,6 +134,10 @@ struct HomeView: View {
                     .padding(.horizontal, 20)
                     .padding(.top, 16)
                     .padding(.bottom, 16)
+
+                    HomeSearchBar(text: $searchText)
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 18)
                     
                     // MARK: Category Chips
                     ScrollView(.horizontal, showsIndicators: false) {
@@ -245,6 +255,42 @@ struct HomeView: View {
         .onChange(of: locationManager.userCoordinate?.latitude) { _, _ in
             viewModel.updateUserCoordinate(locationManager.userCoordinate)
         }
+    }
+}
+
+private struct HomeSearchBar: View {
+    @Binding var text: String
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(.secondary)
+
+            TextField("Buscar eventos", text: $text)
+                .font(.system(size: 15, weight: .medium))
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+
+            if text.isEmpty == false {
+                Button {
+                    text = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 16))
+                        .foregroundColor(.secondary.opacity(0.8))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(Color(.systemGray6))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.black.opacity(0.04), lineWidth: 1)
+        )
     }
 }
 
@@ -538,6 +584,10 @@ struct ExperienceDetailView: View {
                     
                     // Location
                     Label(experience.location, systemImage: "mappin")
+                        .font(.system(size: 14))
+                        .foregroundColor(.secondary)
+
+                    Label(experience.dateText, systemImage: "calendar")
                         .font(.system(size: 14))
                         .foregroundColor(.secondary)
                     
